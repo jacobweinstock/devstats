@@ -9,6 +9,7 @@ Bots are excluded by default.
 Run with uv (no project setup required):
 
     uv run --with rich,httpx /path/to/tink_contributions.py --since 2025-05-01 --until 2026-05-01
+    uv run --with rich,httpx ./tink_contributions.py --since 2025-05-14 --until 2026-05-14 --top 15 --breakdown --exclude-bots
 
 Auth: uses `gh auth token` to get a GitHub token. Run `gh auth login` first.
 """
@@ -250,6 +251,56 @@ class Client:
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(json.dumps(value))
 
+    # --- superset lookup -------------------------------------------------
+    #
+    # When the user asks for a date range that is fully contained in some
+    # already-cached range for the same (repo, kind), reuse it: load the
+    # wider payload, filter items by their stored timestamp, and avoid the
+    # API entirely. Cache filenames already encode the range, so discovery
+    # is purely filesystem-based (no separate index file).
+
+    def _cache_find_superset(
+        self,
+        prefix: str,
+        suffix: str,
+        since: datetime,
+        until: datetime,
+    ) -> tuple[Path, datetime, datetime] | None:
+        """Find the smallest cached range whose [cs, cu) covers [since, until).
+
+        `prefix` and `suffix` are pre-sanitization fragments of the cache key
+        surrounding the `{since}-{until}` range portion. e.g. for issues:
+        prefix="smee/issues-", suffix="". For commits with --no-merges:
+        prefix="smee/commits-v3-", suffix="-1".
+        """
+        if self.no_cache:
+            return None
+        san_prefix = re.sub(r"[^A-Za-z0-9._-]+", "_", prefix)
+        san_suffix = re.sub(r"[^A-Za-z0-9._-]+", "_", suffix)
+        glob_pattern = f"{san_prefix}*{san_suffix}.json"
+        best: tuple[Path, datetime, datetime] | None = None
+        best_span: float | None = None
+        tail = f"{san_suffix}.json"
+        for p in sorted(self.cache_dir.glob(glob_pattern)):
+            name = p.name
+            if not name.startswith(san_prefix) or not name.endswith(tail):
+                continue
+            middle = name[len(san_prefix) : len(name) - len(tail)]
+            m = _RANGE_RE.fullmatch(middle)
+            if not m:
+                continue
+            try:
+                cs = datetime.fromisoformat(m.group(1)).replace(tzinfo=timezone.utc)
+                cu = datetime.fromisoformat(m.group(2)).replace(tzinfo=timezone.utc)
+            except ValueError:
+                continue
+            if cs <= since and cu >= until:
+                span = (cu - cs).total_seconds()
+                if best_span is None or span < best_span:
+                    best = (p, cs, cu)
+                    best_span = span
+        return best
+
     # --- low-level requests with retry/backoff ---------------------------
 
     async def _send(self, method: str, url: str, **kw) -> httpx.Response:
@@ -336,6 +387,46 @@ def _next_link(link_header: str | None) -> str | None:
 # Data fetchers
 # ---------------------------------------------------------------------------
 
+# Used by Client._cache_find_superset to extract the date range from a
+# cache filename's middle portion.
+_RANGE_RE = re.compile(r"(\d{4}-\d{2}-\d{2})-(\d{4}-\d{2}-\d{2})")
+
+
+def _try_subset(
+    c: "Client",
+    repo: str,
+    cache_key: str,
+    prefix: str,
+    suffix: str,
+    since: datetime,
+    until: datetime,
+    label: str,
+) -> list | None:
+    """Return filtered items from a cached superset range, or None.
+
+    On hit, also writes the filtered subset back under `cache_key` so a
+    repeat of the exact narrow range becomes an exact-key hit next time.
+    """
+    hit = c._cache_find_superset(prefix, suffix, since, until)
+    if hit is None:
+        return None
+    path, cs, cu = hit
+    try:
+        items = json.loads(path.read_text())
+    except Exception:
+        return None
+    # Items across all fetchers are uniformly (login, ISO-8601 timestamp).
+    filtered = [it for it in items if since <= _parse_dt(it[1]) < until]
+    c._cache_put(cache_key, filtered)
+    print(
+        f"  cache: subset hit for {repo}/{label} "
+        f"({cs.date()}..{cu.date()} → {since.date()}..{until.date()}, "
+        f"{len(filtered)}/{len(items)} items)",
+        file=sys.stderr,
+    )
+    return filtered
+
+
 REPOS_QUERY = """
 query($org: String!, $cursor: String) {
   organization(login: $org) {
@@ -408,6 +499,10 @@ async def _opened_in_range(
     if cached is not None:
         prog.done(repo, task_name, cached=True)
         return cached
+    sub = _try_subset(c, repo, cache_key, f"{repo}/{kind}-", "", since, until, task_name)
+    if sub is not None:
+        prog.done(repo, task_name, cached=True)
+        return sub
     prog.start(repo, task_name)
     out: list[tuple[str, str]] = []
     cursor: str | None = None
@@ -463,6 +558,10 @@ async def _reviews_in_range(
     if cached is not None:
         prog.done(repo, "reviews", cached=True)
         return cached
+    sub = _try_subset(c, repo, cache_key, f"{repo}/reviews-", "", since, until, "reviews")
+    if sub is not None:
+        prog.done(repo, "reviews", cached=True)
+        return sub
     prog.start(repo, "reviews")
     out: list[tuple[str, str]] = []
     cursor: str | None = None
@@ -527,6 +626,19 @@ async def _comments_in_range(
     if cached is not None:
         prog.done(repo, task_name, cached=True)
         return cached
+    sub = _try_subset(
+        c,
+        repo,
+        cache_key,
+        f"{repo}/{endpoint.replace('/', '_')}-",
+        "",
+        since,
+        until,
+        task_name,
+    )
+    if sub is not None:
+        prog.done(repo, task_name, cached=True)
+        return sub
     prog.start(repo, task_name)
     url = f"{GH_REST}/repos/{ORG}/{repo}/{endpoint}"
     out: list[tuple[str, str]] = []
@@ -579,7 +691,9 @@ query($org: String!, $repo: String!, $since: GitTimestamp!, $until: GitTimestamp
           history(first: 100, since: $since, until: $until, after: $cursor) {
             pageInfo { endCursor hasNextPage }
             nodes {
+              oid
               committedDate
+              messageBody
               parents { totalCount }
               author { user { login } }
             }
@@ -592,15 +706,38 @@ query($org: String!, $repo: String!, $since: GitTimestamp!, $until: GitTimestamp
 }
 """
 
+# Commits imported into the `tinkerbell/tinkerbell` monorepo from other,
+# now-archived repos were rewritten (likely via `git filter-repo`) and got
+# new SHAs, but they carry trailers identifying their origin. Drop any
+# commit whose message body has these trailers so we don't double-count
+# the originals (which still live in the source repos we also scan).
+_LEGACY_TRAILER_RE = re.compile(
+    r"^(Legacy-Repo|Tinkerbell-Legacy-Original-SHA1):", re.MULTILINE
+)
+
 
 async def _commits_in_range(
     c: Client, repo: str, since: datetime, until: datetime, no_merges: bool, prog: Progress
 ) -> list[tuple[str, str]]:
-    cache_key = f"{repo}/commits-{since.date()}-{until.date()}-{int(no_merges)}"
+    # v3 cache key: filters out imported (Legacy-Repo trailer) commits.
+    cache_key = f"{repo}/commits-v3-{since.date()}-{until.date()}-{int(no_merges)}"
     cached = c._cache_get(cache_key)
     if cached is not None:
         prog.done(repo, "commits", cached=True)
         return cached
+    sub = _try_subset(
+        c,
+        repo,
+        cache_key,
+        f"{repo}/commits-v3-",
+        f"-{int(no_merges)}",
+        since,
+        until,
+        "commits",
+    )
+    if sub is not None:
+        prog.done(repo, "commits", cached=True)
+        return sub
     prog.start(repo, "commits")
     out: list[tuple[str, str]] = []
     cursor: str | None = None
@@ -623,6 +760,11 @@ async def _commits_in_range(
         hist = ((ref.get("target") or {}).get("history")) or {}
         for n in hist.get("nodes") or []:
             if no_merges and (n.get("parents") or {}).get("totalCount", 0) > 1:
+                continue
+            body = n.get("messageBody") or ""
+            if _LEGACY_TRAILER_RE.search(body):
+                # Imported from an archived repo; the original repo still
+                # has this commit and will count it there.
                 continue
             user = ((n.get("author") or {}).get("user")) or {}
             login = user.get("login") or ""
