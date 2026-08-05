@@ -1,0 +1,217 @@
+:root {
+  --bg: #0e1116;
+  --panel: #161b22;
+  --panel-2: #1c222b;
+  --border: #2a313c;
+  --text: #d6dde6;
+  --muted: #8b98a8;
+  --accept: #58a6ff;
+  --row-alt: #12161c;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+header {
+  padding: 18px 20px 6px;
+}
+
+h1 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px 22px;
+  align-items: flex-end;
+  padding: 12px 20px;
+}
+
+.control {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.control > span {
+  color: var(--accept);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.control.checkbox {
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+}
+
+.control.checkbox > span {
+  color: var(--text);
+  font-weight: 400;
+}
+
+#custom-range {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+select,
+input[type="date"] {
+  background: var(--panel-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font: inherit;
+}
+
+/* Make the native calendar picker icon visible on the dark theme and clickable. */
+input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  opacity: 0.65;
+  cursor: pointer;
+}
+
+input[type="date"]:hover::-webkit-calendar-picker-indicator {
+  opacity: 1;
+}
+
+.summary {
+  margin: 4px 20px 0;
+  padding: 10px 12px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-bottom: none;
+  border-radius: 6px 6px 0 0;
+  color: var(--muted);
+  text-align: center;
+}
+
+table {
+  width: calc(100% - 40px);
+  margin: 0 20px 12px;
+  border-collapse: collapse;
+  background: var(--panel);
+  border: 1px solid var(--border);
+}
+
+thead th {
+  text-align: left;
+  color: var(--accept);
+  font-size: 12px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel-2);
+}
+
+tbody td {
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+tbody tr:nth-child(even) {
+  background: var(--row-alt);
+}
+
+th.number,
+td.number {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+td.rank {
+  color: var(--muted);
+  width: 64px;
+}
+
+th.spark,
+td.spark {
+  width: 110px;
+}
+
+tr.row {
+  cursor: pointer;
+}
+
+tr.row:hover td {
+  background: var(--panel-2);
+}
+
+.expander {
+  display: inline-block;
+  width: 1em;
+  margin-right: 4px;
+  color: var(--muted);
+  transition: transform 0.12s ease;
+}
+
+tr.row.open .expander {
+  transform: rotate(90deg);
+}
+
+.spark-svg {
+  display: block;
+}
+
+.spark-svg rect {
+  fill: var(--accept);
+}
+
+tr.detail > td {
+  background: var(--bg);
+  padding: 8px 12px 12px 44px;
+}
+
+.breakdown {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  font-size: 12px;
+}
+
+.chip-repo {
+  color: var(--muted);
+}
+
+.chip-n {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+a {
+  color: var(--text);
+  text-decoration: none;
+}
+
+a:hover {
+  color: var(--accept);
+  text-decoration: underline;
+}
+
+footer {
+  color: var(--muted);
+  font-size: 12px;
+  padding: 0 20px 24px;
+}

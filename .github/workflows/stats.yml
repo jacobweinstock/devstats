@@ -1,0 +1,60 @@
+name: update-stats
+
+on:
+  schedule:
+    # Daily at 06:17 UTC. The odd minute (off the top of the hour) avoids the
+    # queueing delay GitHub imposes when many jobs schedule at round times.
+    # 06:17 UTC = 22:17 PST / 23:17 MST / 00:17 CST / 01:17 EST (standard time).
+    - cron: "17 6 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write # commit refreshed cache + data
+  pages: write # deploy to GitHub Pages
+  id-token: write
+
+concurrency:
+  group: update-stats
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Generate events.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: go run ./cmd/tink-contributions --emit-web ./site/data
+
+      - name: Commit refreshed cache + data
+        run: |
+          git config user.name "tinkerbell-stats-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add cache site/data
+          if git diff --cached --quiet; then
+            echo "no changes"
+          else
+            git commit -m "refresh contribution stats"
+            git push
+          fi
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v4

@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Tinkerbell Developer Activity</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <h1>Developer Activity Counts by Repository</h1>
+  </header>
+
+  <section class="controls" aria-label="filters">
+    <label class="control">
+      <span>Range</span>
+      <select id="range">
+        <option value="1">Last day</option>
+        <option value="7">Last week</option>
+        <option value="10">Last 10 days</option>
+        <option value="30">Last 30 days</option>
+        <option value="90">Last 90 days</option>
+        <option value="365" selected>Last year</option>
+        <option value="3650">Last decade</option>
+        <option value="all">All time</option>
+        <option value="custom">Custom…</option>
+      </select>
+    </label>
+
+    <label class="control" id="custom-range">
+      <span>From</span>
+      <input type="date" id="from" />
+      <span>To</span>
+      <input type="date" id="to" />
+    </label>
+
+    <label class="control">
+      <span>Metric</span>
+      <select id="metric">
+        <option value="contributions" selected>Contributions</option>
+        <option value="commit">Commits</option>
+        <option value="issue">Issues</option>
+        <option value="pr">PRs</option>
+        <option value="review">Reviews</option>
+        <option value="comment">Comments</option>
+      </select>
+    </label>
+
+    <label class="control">
+      <span>Repository</span>
+      <select id="group"></select>
+    </label>
+
+    <label class="control checkbox">
+      <input type="checkbox" id="exclude-bots" checked />
+      <span>Exclude bots</span>
+    </label>
+  </section>
+
+  <p id="summary" class="summary"></p>
+
+  <table id="board">
+    <thead>
+      <tr>
+        <th class="rank">Rank</th>
+        <th class="login">GitHub login</th>
+        <th class="spark">Activity</th>
+        <th class="number">Number</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <footer id="footer"></footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
