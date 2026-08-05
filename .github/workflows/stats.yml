@@ -30,7 +30,7 @@ jobs:
       - name: Generate events.json
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: go run ./cmd/tink-contributions --emit-web ./site/data
+        run: go run ./cmd/tink-contributions --emit-web ./site/data --refresh-repos
 
       - name: Commit refreshed cache + data
         run: |

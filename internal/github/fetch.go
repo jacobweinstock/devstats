@@ -4,6 +4,7 @@ import (
 	"context"
 	"regexp"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/google/go-github/v75/github"
@@ -288,4 +289,11 @@ func (c *Client) CommitComments(ctx context.Context, org, repo string, since, un
 
 func is404(resp *github.Response) bool {
 	return resp != nil && resp.StatusCode == 404
+}
+
+// IsRepoNotFound reports whether a GraphQL error is GitHub's "repository not
+// found" — the repo is private to this token, renamed, or deleted. Callers skip
+// such repos rather than failing the whole run.
+func IsRepoNotFound(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "Could not resolve to a Repository")
 }

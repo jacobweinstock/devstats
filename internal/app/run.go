@@ -247,6 +247,11 @@ func gatherRepo(ctx context.Context, cl *github.Client, ca *cache.Cache, cfg Con
 		g.Go(func() error {
 			events, err := cache.FetchRange(ca, j.prefix, cfg.Since, cfg.Until, volatileFrom, at, j.fn)
 			if err != nil {
+				// A repo private to this token, renamed, or deleted can't be
+				// resolved; skip it instead of failing the whole run.
+				if github.IsRepoNotFound(err) {
+					return nil
+				}
 				return err
 			}
 			mu.Lock()
