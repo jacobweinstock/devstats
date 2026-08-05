@@ -14,7 +14,7 @@ type reposQuery struct {
 			Nodes    []struct {
 				Name githubv4.String
 			}
-		} `graphql:"repositories(first: 100, after: $cursor, privacy: PUBLIC, orderBy: {field: NAME, direction: ASC})"`
+		} `graphql:"repositories(first: 100, after: $cursor, privacy: PUBLIC, isFork: false, orderBy: {field: NAME, direction: ASC})"`
 	} `graphql:"organization(login: $org)"`
 }
 

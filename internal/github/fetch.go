@@ -18,7 +18,7 @@ import (
 // which still live in the source repos we also scan, are not double-counted.
 var legacyTrailerRE = regexp.MustCompile(`(?m)^(Legacy-Repo|Tinkerbell-Legacy-Original-SHA1):`)
 
-// ListRepos returns all repository names in org, sorted ascending.
+// ListRepos returns the public, non-fork repository names in org, sorted ascending.
 func (c *Client) ListRepos(ctx context.Context, org string) ([]string, error) {
 	var q reposQuery
 	vars := map[string]any{
